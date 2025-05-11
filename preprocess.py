@@ -1,6 +1,6 @@
+import os
 import pandas as pd
 import ast
-import argparse
 from sklearn.preprocessing import StandardScaler
 import joblib
 
@@ -14,7 +14,8 @@ def preprocess_csv(csv_path, output_path='preprocessed_data.csv', normalize=True
         return  # exit early since nothing can proceed without the file
 
     # Drop unused metadata columns
-    for col in ['parser', 'sensors', 'actions', 'parser.1']:
+    drop_columns = ['parser', 'sensors', 'actions', 'parser.1', 'curLapTime', 'damage', 'lastLapTime']
+    for col in drop_columns:
         if col in data.columns:
             print(f"[INFO] Dropping column: {col}")
             data = data.drop(col, axis=1)
@@ -44,8 +45,10 @@ def preprocess_csv(csv_path, output_path='preprocessed_data.csv', normalize=True
             print(f"[WARN] Dropping unconvertible column: {col}")
             data = data.drop(col, axis=1)
 
+    # drop rows with missing values
+    data = data.dropna()
+
     # Normalize data if required
-   
     print("[INFO] Normalizing data...")
     scaler = StandardScaler()
     data = pd.DataFrame(scaler.fit_transform(data), columns=data.columns)
@@ -60,7 +63,15 @@ def preprocess_csv(csv_path, output_path='preprocessed_data.csv', normalize=True
         print(f"[ERROR] Failed to save preprocessed data: {e}")
 
 
-
 if __name__ == "__main__":
-    preprocess_csv(r"Odata1.csv")
-   
+    input_dir = "raw_training_data"
+    output_dir = "processed_training_data"
+    os.makedirs(output_dir, exist_ok=True)
+
+    for filename in os.listdir(input_dir):
+        if filename.endswith(".csv"):
+            input_path = os.path.join(input_dir, filename)
+            output_path = os.path.join(output_dir, f"preprocessed_{filename}")
+            preprocess_csv(input_path, output_path)
+
+

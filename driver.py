@@ -49,9 +49,9 @@ class Driver(object):
         """Only load pre-trained models from disk"""
         try:
             print("[INFO] Loading existing models...")
-            self.steer_model = joblib.load("steer_model.pkl")
-            self.gear_model = joblib.load("gear_model.pkl")
-            self.accel_model = joblib.load("accel_model.pkl")
+            self.steer_model = joblib.load("models/steer_model.pkl")
+            self.gear_model = joblib.load("models/gear_model.pkl")
+            self.accel_model = joblib.load("models/accel_model.pkl")
             print("[✓] Models loaded successfully.")
         except Exception as e:
             print(f"[ERROR] Failed to load models: {e}")
@@ -168,48 +168,57 @@ class Driver(object):
     
     def extract_features(self):
         """Extract features from the current state to feed into the model"""
-        # Start with basic features
+        s = self.state  # shorthand
+
         feature_dict = {
-            'angle': self.state.angle,
-            'trackPos': self.state.trackPos,
-            'speedX': self.state.getSpeedX(),
-            'speedY': self.state.getSpeedY(),
-            'speedZ': self.state.getSpeedZ(),
-            'rpm': self.state.getRpm(),
-            'gear': self.state.getGear(),
-            'distRaced': self.state.getDistRaced(),
-            'fuel': self.state.getFuel()
+            'angle': s.angle,
+            'distFromStart': s.getDistFromStart(),
+            'distRaced': s.getDistRaced(),
+            'fuel': s.getFuel(),
+            'gear': s.getGear(),
+            'racePos': s.getRacePos(),
+            'rpm': s.getRpm(),
+            'speedX': s.getSpeedX(),
+            'speedY': s.getSpeedY(),
+            'speedZ': s.getSpeedZ(),
+            'trackPos': s.trackPos,
+            'z': s.z,  # assuming this is a valid attribute
+            'accel': s.getAccel(),
+            'brake': s.getBrake(),
+            'gear.1': s.getGear(),  # duplicate, but kept if used in training
+            'steer': s.getSteer(),
+            'clutch': s.getClutch(),
+            'focus.1': s.getFocus(),  # assuming same logic
+            'meta': s.getMeta(),      # optional, if used
         }
-        
-        # Add track sensors if we're using them
-        if 'track' in self.features:
-            track_sensors = self.state.getTrack()
-            if track_sensors and len(track_sensors) > 0:
-                # Use the middle sensor reading if there are multiple
-                feature_dict['track'] = track_sensors[len(track_sensors) // 2]
-        
-        # Add additional features if they're being used by our models
-        if 'curLapTime' in self.features:
-            feature_dict['curLapTime'] = self.state.getCurLapTime()
-        if 'damage' in self.features:
-            feature_dict['damage'] = self.state.getDamage()
-        if 'distFromS' in self.features:
-            feature_dict['distFromS'] = self.state.getDistFromStart()
-        if 'lastLapTime' in self.features:
-            feature_dict['lastLapTime'] = self.state.getLastLapTime()
-        if 'racePos' in self.features:
-            feature_dict['racePos'] = self.state.getRacePos()
-        
-        # Convert to list in the same order as self.features
+
+        # Expand track sensors
+        track = s.getTrack()
+        for i in range(len(track)):
+            feature_dict[f'track_{i}'] = track[i]
+
+        # Expand opponents
+        opponents = s.getOpponents()
+        for i in range(len(opponents)):
+            feature_dict[f'opponents_{i}'] = opponents[i]
+
+        # Expand wheel spin velocity
+        wheel = s.getWheelSpinVel()
+        for i in range(len(wheel)):
+            feature_dict[f'wheelSpinVel_{i}'] = wheel[i]
+
+        # Expand focus sensors
+        focus = s.getFocus()
+        for i in range(len(focus)):
+            feature_dict[f'focus_{i}'] = focus[i]
+
+        # Convert to list in the order of self.features
         feature_values = []
         for feature in self.features:
-            if feature in feature_dict:
-                feature_values.append(feature_dict[feature])
-            else:
-                # Use a default value if the feature is not available
-                feature_values.append(0)
-        
+            feature_values.append(feature_dict.get(feature, 0))  # default to 0 if missing
+
         return feature_values
+
     
     # Original methods kept as fallback
     def steer(self):
